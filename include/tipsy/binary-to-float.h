@@ -17,7 +17,7 @@
 
 namespace tipsy
 {
-inline float threeBytesToFloat(const unsigned char * const d)
+inline float threeBytesToFloat(const unsigned char *const d)
 {
     unsigned char enc[4];
     enc[0] = d[0];
@@ -30,7 +30,7 @@ inline float threeBytesToFloat(const unsigned char * const d)
     return res;
 }
 
-inline void floatToThreeBytes(float f, unsigned char * const d)
+inline void floatToThreeBytes(float f, unsigned char *const d)
 {
     auto *y = (unsigned char *)&f;
 
@@ -38,6 +38,6 @@ inline void floatToThreeBytes(float f, unsigned char * const d)
     d[1] = y[1];
     d[2] = (y[2] & 127) | (y[3] & 128);
 }
-}
+} // namespace tipsy
 
 #endif // TIPSY_ENCODER_BINARY_TO_FLOAT_H

@@ -10,5 +10,6 @@
 
 #include "version.h"
 #include "binary-to-float.h"
+#include "protocol.h"
 
 #endif // TIPSY_ENCODER_TIPSY_H
