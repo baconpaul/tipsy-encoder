@@ -38,6 +38,6 @@ jobs:
 
       - name: Run Test
         run: |
-          cd "${{ matrix.dir_build }}"
-          tipsy-encoder-test
+          echo ${{ matrix.dir_build }}/tipsy-encoder-test
+          ${{ matrix.dir_build }}/tipsy-encoder-test
 
