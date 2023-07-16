@@ -28,6 +28,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Build with CXX11
+        run: |
+          cmake -S . -B ./build-cxx11 -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DTIPSY_USE_CXX_11=TRUE
+          cmake --build ./build-cxx11 --config Release
+
+
       - name: Build binary
         run: |
           cmake -S . -B ./build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"

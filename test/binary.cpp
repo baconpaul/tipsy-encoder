@@ -6,7 +6,6 @@
 #include "catch2.hpp"
 #include "tipsy/binary-to-float.h"
 
-
 TEST_CASE("Binary to Float in range across all binaries")
 {
     // This test can be a touch slow but works fine
