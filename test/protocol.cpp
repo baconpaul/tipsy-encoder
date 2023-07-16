@@ -5,6 +5,8 @@
 #include "catch2.hpp"
 #include "tipsy/tipsy.h"
 
+#include <cstring>
+
 TEST_CASE("Protocol Encode Simple String")
 {
     const char *mimeType{"application/text"};
