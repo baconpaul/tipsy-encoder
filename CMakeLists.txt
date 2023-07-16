@@ -22,10 +22,12 @@ target_include_directories(${PROJECT_NAME} INTERFACE include)
 add_executable(${PROJECT_NAME}-test test/main.cpp test/binary.cpp test/protocol.cpp)
 target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME}-test PRIVATE test)
+
+# This is required for macos < 10.12 which we support here but its only in the test
 target_compile_definitions(${PROJECT_NAME}-test PRIVATE CATCH_CONFIG_NO_CPP17_UNCAUGHT_EXCEPTIONS)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    # target_compile_options(${PROJECT_NAME}-test PRIVATE -Werror)
+    target_compile_options(${PROJECT_NAME}-test PRIVATE -Werror)
 endif()
 
 

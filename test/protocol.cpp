@@ -17,5 +17,7 @@ TEST_CASE("Protocol Encode Simple String")
     tipsy::ProtocolEncoder pe;
 
     // dont forget the null terminatlr
-    pe.initiateMessage(mimeType, metaData, strlen(message) + 1, (unsigned char *)message);
+    auto status =
+        pe.initiateMessage(mimeType, metaData, strlen(message) + 1, (unsigned char *)message);
+    assert(status == tipsy::ProtocolEncoder::OK);
 }
