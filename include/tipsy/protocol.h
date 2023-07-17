@@ -71,12 +71,11 @@ struct ProtocolEncoder
         {
             return ERROR_MIME_TYPE_TOO_LARGE;
         }
-        if (messageActive)
+        if (!isDormant())
         {
             return ERROR_MESSAGE_ALREADY_ACTIVE;
         }
 
-        messageActive = true;
         mimeType = inMimeType;
         mimeTypeSize = ms;
         data = inData;
@@ -253,8 +252,12 @@ struct ProtocolEncoder
         return MESSAGE_TERMINATED;
     }
 
+    bool isDormant()
+    {
+        return encoderState == NO_MESSAGE;
+    }
+
   private:
-    bool messageActive{false};
     const char *mimeType{nullptr};
     uint32_t dataBytes{0}, mimeTypeSize{0};
     const unsigned char *data;
