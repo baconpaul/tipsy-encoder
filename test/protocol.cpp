@@ -17,22 +17,28 @@ TEST_CASE("Protocol Encode Simple String")
 
     tipsy::ProtocolEncoder pe;
 
-    // dont forget the null terminatlr
+    // dont forget the null termination
     auto status = pe.initiateMessage(mimeType, strlen(message) + 1, (unsigned char *)message);
-    REQUIRE(status == tipsy::ProtocolEncoder::OK);
+    REQUIRE(status == tipsy::ProtocolEncoder::MESSAGE_INITIATED);
+    bool done{false};
     for (int i = 0; i < 50; ++i)
     {
         float nf;
         auto st = pe.getNextMessageFloat(nf);
-        // std::cout << st << " " << nf;
-        if (nf <= 10 && nf >= -10)
+
+        if (done)
         {
-            unsigned char d[3];
-            tipsy::floatToThreeBytes(nf, d);
-            /*for (int q = 0; q < 3; ++q)
-                std::cout << " " << (int)d[q]; */
+            REQUIRE(st == tipsy::ProtocolEncoder::DORMANT);
         }
-        std::cout << std::endl;
+        else
+        {
+            REQUIRE(((st == tipsy::ProtocolEncoder::ENCODING_MESSAGE) ||
+                     (st == tipsy::ProtocolEncoder::MESSAGE_COMPLETE)));
+        }
+        if (st == tipsy::ProtocolEncoder::MESSAGE_COMPLETE)
+        {
+            done = true;
+        }
     }
 }
 
