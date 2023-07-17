@@ -35,10 +35,28 @@ static constexpr size_t kMaxMimeTypeSize{1024};
 
 struct ProtocolEncoder
 {
-    enum EncoderResult
+    enum EncoderResult : uint16_t
     {
-        OK
+        DORMANT = 1,
+        ENCODING_MESSAGE,
+        MESSAGE_COMPLETE,
+        MESSAGE_TERMINATED,
+
+        MESSAGE_INITIATED,
+
+        ERROR_UNKNOWN = 1 << 7,
+        ERROR_NO_MESSAGE_ACTIVE,
+        ERROR_MESSAGE_TOO_LARGE,
+        ERROR_MIME_TYPE_TOO_LARGE,
+        ERROR_MESSAGE_ALREADY_ACTIVE
     };
+
+    bool isError(EncoderResult r)
+    {
+        if (((uint16_t)r) & ((uint16_t)ERROR_UNKNOWN))
+            return true;
+        return false;
+    }
 
     TIPSY_NODISCARD
     EncoderResult initiateMessage(const char *inMimeType, uint32_t inDataBytes,
@@ -46,19 +64,16 @@ struct ProtocolEncoder
     {
         if (inDataBytes > 1 << 23)
         {
-            // return MESSAGE_TOO_LARGE
-            return OK;
+            return ERROR_MESSAGE_TOO_LARGE;
         }
         auto ms = strlen(inMimeType) + 1;
         if (ms > kMaxMimeTypeSize)
         {
-            // return MIMETYPE_TOO_LARGE
-            return OK;
+            return ERROR_MIME_TYPE_TOO_LARGE;
         }
         if (messageActive)
         {
-            // return MESSAGE_ALREADY_ACTIVE
-            return OK;
+            return ERROR_MESSAGE_ALREADY_ACTIVE;
         }
 
         messageActive = true;
@@ -69,7 +84,7 @@ struct ProtocolEncoder
 
         setState(START_MESSAGE);
 
-        return OK;
+        return MESSAGE_INITIATED;
     }
 
     TIPSY_NODISCARD
@@ -79,7 +94,7 @@ struct ProtocolEncoder
         {
         case NO_MESSAGE:
             f = 0;
-            // return INACTIVE
+            return DORMANT;
             break;
         case START_MESSAGE:
         {
@@ -89,7 +104,7 @@ struct ProtocolEncoder
             {
                 setState(HEADER_VERSION);
             }
-            // return ACTIVE;
+            return ENCODING_MESSAGE;
             break;
         }
         case HEADER_VERSION:
@@ -108,7 +123,7 @@ struct ProtocolEncoder
                 f = threeBytesToFloat(d);
                 setState(HEADER_SIZE);
             }
-            // return ACTIVE;
+            return ENCODING_MESSAGE;
         }
         break;
         case HEADER_SIZE:
@@ -124,10 +139,11 @@ struct ProtocolEncoder
                 d[0] = dataBytes & 255;
                 d[1] = (dataBytes >> 8) & 255;
                 d[2] = (dataBytes >> 16) & 255;
-                ;
+
                 f = threeBytesToFloat(d);
                 setState(HEADER_MIMETYPE);
             }
+            return ENCODING_MESSAGE;
         }
         break;
         case HEADER_MIMETYPE:
@@ -174,6 +190,7 @@ struct ProtocolEncoder
                     setState(BODY);
                 }
             }
+            return ENCODING_MESSAGE;
         }
         break;
         case BODY:
@@ -210,17 +227,19 @@ struct ProtocolEncoder
                 f = threeBytesToFloat((unsigned char *)d);
                 setState(END_MESSAGE);
             }
+            return ENCODING_MESSAGE;
         }
         break;
         case END_MESSAGE:
         {
             f = kEndMessageSentinel;
             setState(NO_MESSAGE);
+            return MESSAGE_COMPLETE;
         }
         break;
         }
 
-        return OK;
+        return ERROR_UNKNOWN;
     }
 
     TIPSY_NODISCARD
@@ -228,10 +247,10 @@ struct ProtocolEncoder
     {
         if (encoderState == NO_MESSAGE)
         {
-            // reutrn NO_MESSAGE_ACTIVE?
+            return ERROR_NO_MESSAGE_ACTIVE;
         }
         setState(NO_MESSAGE);
-        return OK;
+        return MESSAGE_TERMINATED;
     }
 
   private:
