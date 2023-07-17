@@ -262,11 +262,29 @@ struct ProtocolEncoder
 
 struct ProtocolDecoder
 {
-    enum DecoderResult
+    enum DecoderResult : uint16_t
     {
-        OK,
-        NOT_OK
+        DORMANT = 1,
+        PARSING_HEADER,
+        HEADER_READY,
+        PARSING_BODY,
+        BODY_READY,
+
+        ERROR_UNKNOWN = 1 << 8, // set this bit for all the errors
+        ERROR_INCOMPATIBLE_VERSION,
+        ERROR_MALFORMED_HEADER,
+        ERROR_DATA_TOO_LARGE,
+
+        // OK,
+        // NOT_OK
     };
+
+    bool isError(DecoderResult r)
+    {
+        if (((uint16_t)r) & ((uint16_t)ERROR_UNKNOWN))
+            return true;
+        return false;
+    }
 
     bool provideDataBuffer(unsigned char *pdat, size_t psize)
     {
@@ -290,43 +308,42 @@ struct ProtocolDecoder
             dataSize = 0;
             memset(mimetype, 0, sizeof(mimetype));
             version = -1;
-            return OK;
+            return PARSING_HEADER;
         }
 
         // Use sentinels to force state for next read
         if (f == kVersionSentinel)
         {
             setState(START_VERSION);
-            return OK;
+            return PARSING_HEADER;
         }
         if (f == kSizeSentinel)
         {
             setState(START_SIZE);
-            return OK;
+            return PARSING_HEADER;
         }
         if (f == kMimeTypeSentinel)
         {
             setState(START_MIMETYPE);
-            return OK;
+            return PARSING_HEADER;
         }
         if (f == kBodySentinel)
         {
             setState(START_BODY);
-            return OK;
+            return HEADER_READY;
         }
         if (f == kEndMessageSentinel)
         {
             setState(DOING_NOTHING);
-            return OK;
+            return BODY_READY;
         }
 
         switch (decoderState)
         {
         case DOING_NOTHING:
-            return OK;
+            return DORMANT;
         case START_HEADER:
-            return NOT_OK;
-            break;
+            return PARSING_HEADER;
         case START_VERSION:
             if (pos == 0)
             {
@@ -336,16 +353,16 @@ struct ProtocolDecoder
                 pos++;
                 if (version > 0 && version <= kVersion)
                 {
-                    return OK;
+                    return PARSING_HEADER;
                 }
                 else
                 {
-                    return NOT_OK;
+                    return ERROR_INCOMPATIBLE_VERSION;
                 }
             }
             else
             {
-                return NOT_OK;
+                return ERROR_MALFORMED_HEADER;
             }
             break;
 
@@ -356,11 +373,11 @@ struct ProtocolDecoder
                 floatToThreeBytes(f, d);
                 dataSize = d[0] + (d[1] << 8) + (d[2] << 16);
                 pos++;
-                return OK;
+                return PARSING_HEADER;
             }
             else
             {
-                return NOT_OK;
+                return ERROR_MALFORMED_HEADER;
             }
             break;
 
@@ -373,18 +390,19 @@ struct ProtocolDecoder
                 mimetypeSize = d[0] + (d[1] << 8);
 
                 pos++;
+                return PARSING_HEADER;
             }
             else
             {
                 if (pos > mimetypeSize)
                 {
-                    return NOT_OK;
+                    return ERROR_MALFORMED_HEADER;
                 }
                 unsigned char d[3];
                 floatToThreeBytes(f, d);
 
                 if (pos >= kMaxMimeTypeSize - 4)
-                    return NOT_OK;
+                    return ERROR_DATA_TOO_LARGE;
 
                 auto wp = pos - 1;
                 mimetype[wp] = d[0];
@@ -392,7 +410,7 @@ struct ProtocolDecoder
                 mimetype[wp + 2] = d[2];
 
                 pos += 3;
-                return OK;
+                return PARSING_HEADER;
             }
             break;
         }
@@ -406,16 +424,16 @@ struct ProtocolDecoder
                 dataStore[pos + 1] = d[1];
                 dataStore[pos + 2] = d[2];
                 pos += 3;
-                return OK;
+                return PARSING_BODY;
             }
             else
             {
-                return NOT_OK;
+                return ERROR_DATA_TOO_LARGE;
             }
             break;
         }
 
-        return NOT_OK;
+        return ERROR_UNKNOWN;
     }
 
   private:
