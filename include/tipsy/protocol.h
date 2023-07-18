@@ -1,17 +1,18 @@
+#pragma once
+#ifndef TIPSY_ENCODER_PROTOCOL_H
+#define TIPSY_ENCODER_PROTOCOL_H
 /*
  * Given an encoder for raw binary, we need a communications protocol. This sort of
  * lays one out with a stateful encoder and decoder object.
  *
- * We have to take great care to have these be audio thread safe, so allocation and copies
- * are things we try hard not to do. Please carefully read the comments on functions to make
- * sure you get the ownership correct.
+ * We have to take great care to have these be audio thread safe, so heap allocation
+ * and copies are things we try hard not to do. Please carefully read the comments on
+ * functions to make sure you get the ownership correct.
  */
-
-#ifndef TIPSY_ENCODER_PROTOCOL_H
-#define TIPSY_ENCODER_PROTOCOL_H
 
 #include <cstdint>
 #include <cstring>
+#include "tipsy.h"
 
 #if __cplusplus >= 201703L
 #define TIPSY_NODISCARD [[nodiscard]]
@@ -30,50 +31,70 @@ static constexpr float kSizeSentinel{13.f};
 static constexpr float kMimeTypeSentinel{14.f};
 static constexpr float kBodySentinel{15.f};
 static constexpr float kEndMessageSentinel{16.f};
+
 static constexpr uint16_t kVersion{0x01};
-static constexpr size_t kMaxMimeTypeSize{1024};
+
+// limits
+static constexpr size_t kMaxMimeTypeSize{256};
+static constexpr size_t kMaxMessageLength{1 << 23};
 
 struct ProtocolEncoder
 {
-    enum EncoderResult : uint16_t
+    enum class EncoderResult : uint16_t
     {
         DORMANT = 1,
         ENCODING_MESSAGE,
         MESSAGE_COMPLETE,
         MESSAGE_TERMINATED,
-
         MESSAGE_INITIATED,
 
-        ERROR_UNKNOWN = 1 << 7,
+        ERROR_UNKNOWN = 0x100,
         ERROR_NO_MESSAGE_ACTIVE,
         ERROR_MESSAGE_TOO_LARGE,
         ERROR_MIME_TYPE_TOO_LARGE,
-        ERROR_MESSAGE_ALREADY_ACTIVE
+        ERROR_MESSAGE_ALREADY_ACTIVE,
+        ERROR_MISSING_MIME_TYPE,
+        ERROR_MISSING_DATA,
     };
 
     bool isError(EncoderResult r)
     {
-        if (((uint16_t)r) & ((uint16_t)ERROR_UNKNOWN))
-            return true;
-        return false;
+        return r >= EncoderResult::ERROR_UNKNOWN;
     }
 
     TIPSY_NODISCARD
     EncoderResult initiateMessage(const char *inMimeType, uint32_t inDataBytes,
                                   const unsigned char *const inData)
     {
-        if (inDataBytes > 1 << 23)
+        if (inDataBytes > kMaxMessageLength)
         {
-            return ERROR_MESSAGE_TOO_LARGE;
+            return EncoderResult::ERROR_MESSAGE_TOO_LARGE;
+        }
+        if ((inDataBytes > 0) && (nullptr == inData))
+        {
+            return EncoderResult::ERROR_MISSING_DATA;
+        }
+        if (nullptr == inMimeType)
+        if (inDataBytes > kMaxMessageLength)
+        {
+            return EncoderResult::ERROR_MESSAGE_TOO_LARGE;
+        }
+        if ((inDataBytes > 0) && (nullptr == inData))
+        {
+            return EncoderResult::ERROR_MISSING_DATA;
+        }
+        if (nullptr == inMimeType)
+        {
+            return EncoderResult::ERROR_MISSING_MIME_TYPE;
         }
         auto ms = strlen(inMimeType) + 1;
         if (ms > kMaxMimeTypeSize)
         {
-            return ERROR_MIME_TYPE_TOO_LARGE;
+            return EncoderResult::ERROR_MIME_TYPE_TOO_LARGE;
         }
         if (!isDormant())
         {
-            return ERROR_MESSAGE_ALREADY_ACTIVE;
+            return EncoderResult::ERROR_MESSAGE_ALREADY_ACTIVE;
         }
 
         mimeType = inMimeType;
@@ -81,9 +102,9 @@ struct ProtocolEncoder
         data = inData;
         dataBytes = inDataBytes;
 
-        setState(START_MESSAGE);
+        setState(EncoderState::START_MESSAGE);
 
-        return MESSAGE_INITIATED;
+        return EncoderResult::MESSAGE_INITIATED;
     }
 
     TIPSY_NODISCARD
@@ -91,22 +112,25 @@ struct ProtocolEncoder
     {
         switch (encoderState)
         {
-        case NO_MESSAGE:
+        case EncoderState::NO_MESSAGE:
             f = 0;
-            return DORMANT;
+            return EncoderResult::DORMANT;
+            return EncoderResult::DORMANT;
             break;
-        case START_MESSAGE:
+        case EncoderState::START_MESSAGE:
         {
             f = kMessageBeginSentinel;
             pos++;
             if (pos == 3)
             {
-                setState(HEADER_VERSION);
+                setState(EncoderState::HEADER_VERSION);
+                setState(EncoderState::HEADER_VERSION);
             }
-            return ENCODING_MESSAGE;
+            return EncoderResult::ENCODING_MESSAGE;
+            return EncoderResult::ENCODING_MESSAGE;
             break;
         }
-        case HEADER_VERSION:
+        case EncoderState::HEADER_VERSION:
         {
             if (pos == 0)
             {
@@ -115,17 +139,13 @@ struct ProtocolEncoder
             }
             else
             {
-                unsigned char d[3];
-                d[0] = kVersion & 255;
-                d[1] = (kVersion >> 8) & 255;
-                d[2] = 0;
-                f = threeBytesToFloat(d);
-                setState(HEADER_SIZE);
+                f = FloatBytes(kVersion);
+                setState(EncoderState::HEADER_SIZE);
             }
-            return ENCODING_MESSAGE;
+            return EncoderResult::ENCODING_MESSAGE;
         }
         break;
-        case HEADER_SIZE:
+        case EncoderState::HEADER_SIZE:
         {
             if (pos == 0)
             {
@@ -134,18 +154,13 @@ struct ProtocolEncoder
             }
             else
             {
-                unsigned char d[3];
-                d[0] = dataBytes & 255;
-                d[1] = (dataBytes >> 8) & 255;
-                d[2] = (dataBytes >> 16) & 255;
-
-                f = threeBytesToFloat(d);
-                setState(HEADER_MIMETYPE);
+                f = FloatBytes(dataBytes);
+                setState(EncoderState::HEADER_MIMETYPE);
             }
-            return ENCODING_MESSAGE;
+            return EncoderResult::ENCODING_MESSAGE;
         }
         break;
-        case HEADER_MIMETYPE:
+        case EncoderState::HEADER_MIMETYPE:
         {
             if (pos == 0)
             {
@@ -154,13 +169,7 @@ struct ProtocolEncoder
             }
             else if (pos == 1)
             {
-                auto sl = mimeTypeSize;
-                unsigned char d[3];
-                d[0] = sl & 255;
-                d[1] = (sl >> 8) & 255;
-                d[2] = (sl >> 16) & 255;
-
-                f = threeBytesToFloat(d);
+                f = FloatBytes(mimeTypeSize);
                 pos++;
             }
             else
@@ -168,31 +177,31 @@ struct ProtocolEncoder
                 auto dp = pos - 2;
                 if (dp < mimeTypeSize - 3)
                 {
-                    f = threeBytesToFloat((unsigned char *)(mimeType + dp));
+                    auto mt = (unsigned char *)(mimeType + dp);
+                    f = FloatBytes(mt[0], mt[1], mt[2]);
 
                     pos += 3;
                     if (pos - 1 == mimeTypeSize)
                     {
-                        setState(BODY);
+                        setState(EncoderState::BODY);
                     }
                 }
                 else
                 {
                     char d[3]{0, 0, 0};
                     int i{0};
-                    for (; dp < mimeTypeSize; ++dp)
+                    for (; dp < mimeTypeSize; ++dp, ++i, ++i)
                     {
                         d[i] = mimeType[dp];
-                        i++;
                     }
-                    f = threeBytesToFloat((unsigned char *)d);
-                    setState(BODY);
+                    f = FloatBytes(d[0], d[1], d[2]);
+                    setState(EncoderState::BODY);
                 }
             }
-            return ENCODING_MESSAGE;
+            return EncoderResult::ENCODING_MESSAGE;
         }
         break;
-        case BODY:
+        case EncoderState::BODY:
         {
             if (pos == 0)
             {
@@ -201,68 +210,67 @@ struct ProtocolEncoder
             }
             else if (pos - 1 == dataBytes)
             {
-                setState(END_MESSAGE);
+                setState(EncoderState::END_MESSAGE);
             }
             else if (pos - 1 < dataBytes - 3)
             {
-                f = threeBytesToFloat((unsigned char *)(data + pos - 1));
-
+                auto d = data + pos - 1;
+                f = FloatBytes(d[0], d[1], d[2]);
                 pos += 3;
                 if (pos - 1 == dataBytes)
                 {
-                    setState(END_MESSAGE);
+                    setState(EncoderState::END_MESSAGE);
                 }
             }
             else
             {
-                auto dp = pos - 1;
-                char d[3]{0, 0, 0};
+                unsigned char d[3]{0, 0, 0};
                 int i{0};
-                for (; dp < dataBytes; ++dp)
+                for (unsigned int dpos = pos - 1; dpos < dataBytes; ++dpos, ++i)
                 {
-                    d[i] = data[dp];
-                    i++;
+                    d[i] = data[dpos];
                 }
-                f = threeBytesToFloat((unsigned char *)d);
-                setState(END_MESSAGE);
+                f = FloatBytes(d[0], d[1], d[2]);
+                setState(EncoderState::END_MESSAGE);
             }
-            return ENCODING_MESSAGE;
+            return EncoderResult::ENCODING_MESSAGE;
         }
         break;
-        case END_MESSAGE:
+        case EncoderState::END_MESSAGE:
         {
             f = kEndMessageSentinel;
-            setState(NO_MESSAGE);
-            return MESSAGE_COMPLETE;
+            setState(EncoderState::NO_MESSAGE);
+            return EncoderResult::MESSAGE_COMPLETE;
         }
         break;
         }
 
-        return ERROR_UNKNOWN;
+        return EncoderResult::ERROR_UNKNOWN;
     }
 
     TIPSY_NODISCARD
     EncoderResult terminateCurrentMessage()
     {
-        if (encoderState == NO_MESSAGE)
+        if (encoderState == EncoderState::NO_MESSAGE)
         {
-            return ERROR_NO_MESSAGE_ACTIVE;
+            return EncoderResult::ERROR_NO_MESSAGE_ACTIVE;
         }
-        setState(NO_MESSAGE);
-        return MESSAGE_TERMINATED;
+        setState(EncoderState::NO_MESSAGE);
+        return EncoderResult::MESSAGE_TERMINATED;
     }
 
     bool isDormant()
     {
-        return encoderState == NO_MESSAGE;
+        return encoderState == EncoderState::NO_MESSAGE;
     }
 
   private:
-    const char *mimeType{nullptr};
-    uint32_t dataBytes{0}, mimeTypeSize{0};
-    const unsigned char *data;
+    const char * mimeType{nullptr};
+    uint32_t dataBytes{0};
+    uint16_t mimeTypeSize{0};
+    const unsigned char *data{nullptr};
 
-    enum EncoderStates
+    enum class EncoderState: uint16_t
     {
         NO_MESSAGE,
         START_MESSAGE,
@@ -271,11 +279,11 @@ struct ProtocolEncoder
         HEADER_MIMETYPE,
         BODY,
         END_MESSAGE
-    } encoderState{NO_MESSAGE};
+    } encoderState{EncoderState::NO_MESSAGE};
 
-    int pos{0};
+    unsigned int pos{0};
 
-    void setState(EncoderStates s)
+    void setState(EncoderState s)
     {
         encoderState = s;
         pos = 0;
@@ -284,7 +292,7 @@ struct ProtocolEncoder
 
 struct ProtocolDecoder
 {
-    enum DecoderResult : uint16_t
+    enum class DecoderResult : uint16_t
     {
         DORMANT = 1,
         PARSING_HEADER,
@@ -292,30 +300,24 @@ struct ProtocolDecoder
         PARSING_BODY,
         BODY_READY,
 
-        ERROR_UNKNOWN = 1 << 8, // set this bit for all the errors
+        ERROR_UNKNOWN = 0x100,
         ERROR_INCOMPATIBLE_VERSION,
         ERROR_MALFORMED_HEADER,
-        ERROR_DATA_TOO_LARGE,
-
-        // OK,
-        // NOT_OK
+        ERROR_DATA_TOO_LARGE
     };
 
-    bool isError(DecoderResult r)
+    static bool isError(DecoderResult r)
     {
-        if (((uint16_t)r) & ((uint16_t)ERROR_UNKNOWN))
-            return true;
-        return false;
+        return r >= DecoderResult::ERROR_UNKNOWN;
     }
 
-    bool provideDataBuffer(unsigned char *pdat, size_t psize)
+    bool provideDataBuffer(unsigned char * data, int size)
     {
-        if (decoderState == START_BODY)
+        if (decoderState == DecoderState::START_BODY)
             return false;
 
-        dataStore = pdat;
-        dataStoreSize = psize;
-
+        dataStore = data;
+        dataStoreSize = size;
         return true;
     }
 
@@ -326,140 +328,129 @@ struct ProtocolDecoder
     {
         if (f == kMessageBeginSentinel)
         {
-            setState(START_HEADER);
+            setState(DecoderState::START_HEADER);
             dataSize = 0;
             memset(mimetype, 0, sizeof(mimetype));
             version = -1;
-            return PARSING_HEADER;
+            return DecoderResult::PARSING_HEADER;
         }
 
         // Use sentinels to force state for next read
         if (f == kVersionSentinel)
         {
-            setState(START_VERSION);
-            return PARSING_HEADER;
+            setState(DecoderState::START_VERSION);
+            return DecoderResult::PARSING_HEADER;
         }
         if (f == kSizeSentinel)
         {
-            setState(START_SIZE);
-            return PARSING_HEADER;
+            setState(DecoderState::START_SIZE);
+            return DecoderResult::PARSING_HEADER;
         }
         if (f == kMimeTypeSentinel)
         {
-            setState(START_MIMETYPE);
-            return PARSING_HEADER;
+            setState(DecoderState::START_MIMETYPE);
+            return DecoderResult::PARSING_HEADER;
         }
         if (f == kBodySentinel)
         {
-            setState(START_BODY);
-            return HEADER_READY;
+            setState(DecoderState::START_BODY);
+            return DecoderResult::HEADER_READY;
         }
         if (f == kEndMessageSentinel)
         {
-            setState(DOING_NOTHING);
-            return BODY_READY;
+            setState(DecoderState::DOING_NOTHING);
+            return DecoderResult::BODY_READY;
         }
 
         switch (decoderState)
         {
-        case DOING_NOTHING:
-            return DORMANT;
-        case START_HEADER:
-            return PARSING_HEADER;
-        case START_VERSION:
+        case DecoderState::DOING_NOTHING:
+            return DecoderResult::DORMANT;
+        case DecoderState::START_HEADER:
+            return DecoderResult::PARSING_HEADER;
+        case DecoderState::START_VERSION:
             if (pos == 0)
             {
-                unsigned char d[3];
-                floatToThreeBytes(f, d);
-                version = d[0] + (d[1] << 8);
+                version = uint16_FromFloat(f);
                 pos++;
                 if (version > 0 && version <= kVersion)
                 {
-                    return PARSING_HEADER;
+                    return DecoderResult::PARSING_HEADER;
                 }
                 else
                 {
-                    return ERROR_INCOMPATIBLE_VERSION;
+                    return DecoderResult::ERROR_INCOMPATIBLE_VERSION;
                 }
             }
             else
             {
-                return ERROR_MALFORMED_HEADER;
+                return DecoderResult::ERROR_MALFORMED_HEADER;
             }
             break;
 
-        case START_SIZE:
+        case DecoderState::START_SIZE:
             if (pos == 0)
             {
-                unsigned char d[3];
-                floatToThreeBytes(f, d);
-                dataSize = d[0] + (d[1] << 8) + (d[2] << 16);
+                dataSize = uint32_FromFloat(f);
                 pos++;
-                return PARSING_HEADER;
+                return DecoderResult::PARSING_HEADER;
             }
             else
             {
-                return ERROR_MALFORMED_HEADER;
+                return DecoderResult::ERROR_MALFORMED_HEADER;
             }
             break;
 
-        case START_MIMETYPE:
+        case DecoderState::START_MIMETYPE:
         {
             if (pos == 0)
             {
-                unsigned char d[3];
-                floatToThreeBytes(f, d);
-                mimetypeSize = d[0] + (d[1] << 8);
-
+                mimetypeSize = uint16_FromFloat(f);
                 pos++;
-                return PARSING_HEADER;
+                return DecoderResult::PARSING_HEADER;
             }
             else
             {
                 if (pos > mimetypeSize)
                 {
-                    return ERROR_MALFORMED_HEADER;
+                    return DecoderResult::ERROR_MALFORMED_HEADER;
                 }
-                unsigned char d[3];
-                floatToThreeBytes(f, d);
-
-                if (pos >= kMaxMimeTypeSize - 4)
-                    return ERROR_DATA_TOO_LARGE;
+                if (pos >= kMaxMimeTypeSize - 4) {
+                    return DecoderResult::ERROR_DATA_TOO_LARGE;
+                }
 
                 auto wp = pos - 1;
-                mimetype[wp] = d[0];
-                mimetype[wp + 1] = d[1];
-                mimetype[wp + 2] = d[2];
+                auto float_bytes = FloatBytes(f);
+                mimetype[wp] = float_bytes.first();
+                mimetype[wp + 1] = float_bytes.second();
+                mimetype[wp + 2] = float_bytes.third();
 
                 pos += 3;
-                return PARSING_HEADER;
+                return DecoderResult::PARSING_HEADER;
             }
             break;
         }
-        case START_BODY:
-            unsigned char d[3];
-            floatToThreeBytes(f, d);
-
-            if (pos < dataStoreSize + 3)
+        case DecoderState::START_BODY:
+            if (pos < dataStoreSize - 3)
             {
-                dataStore[pos] = d[0];
-                dataStore[pos + 1] = d[1];
-                dataStore[pos + 2] = d[2];
-                pos += 3;
-                return PARSING_BODY;
+                auto float_bytes = FloatBytes(f);
+                dataStore[pos++] = float_bytes.first();
+                dataStore[pos++] = float_bytes.second();
+                dataStore[pos++] = float_bytes.third();
+                return DecoderResult::PARSING_BODY;
             }
             else
             {
-                return ERROR_DATA_TOO_LARGE;
+                return DecoderResult::ERROR_DATA_TOO_LARGE;
             }
             break;
         }
 
-        return ERROR_UNKNOWN;
+        return DecoderResult::ERROR_UNKNOWN;
     }
 
   private:
-    enum DecoderState
+    enum class DecoderState : uint8_t
     {
         DOING_NOTHING,
         START_VERSION,
@@ -467,9 +458,10 @@ struct ProtocolDecoder
         START_SIZE,
         START_MIMETYPE,
         START_BODY
-    } decoderState{DOING_NOTHING};
-    int pos{0};
-    int16_t version;
+    } decoderState{DecoderState::DOING_NOTHING};
+
+    uint32_t pos{0};
+    uint16_t version;
     uint32_t dataSize;
     char mimetype[kMaxMimeTypeSize];
     uint16_t mimetypeSize;
@@ -483,6 +475,10 @@ struct ProtocolDecoder
         pos = 0;
     }
 };
-} // namespace tipsy
 
+// convenience shorthands for client code
+using EncoderResult = ProtocolEncoder::EncoderResult;
+using DecoderResult = ProtocolDecoder::DecoderResult;
+
+} // namespace tipsy
 #endif // TIPSY_ENCODER_PROTOCOL_H

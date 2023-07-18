@@ -1,9 +1,9 @@
-/*
- * Information on version
- */
-
+#pragma once
 #ifndef TIPSY_ENCODER_VERSION_H
 #define TIPSY_ENCODER_VERSION_H
+/*
+ * Tipsy library version
+ */
 
 namespace tipsy
 {
