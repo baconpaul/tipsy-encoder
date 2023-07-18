@@ -56,7 +56,7 @@ TEST_CASE("Encode Decode String")
 
     // dont forget the null terminate
     auto status = pe.initiateMessage(mimeType, strlen(message) + 1, (unsigned char *)message);
-    assert(status == tipsy::ProtocolEncoder::OK);
+    REQUIRE(status == tipsy::ProtocolEncoder::MESSAGE_INITIATED);
     bool gotHeader{false}, gotBody{false};
     for (int i = 0; i < 50; ++i)
     {
