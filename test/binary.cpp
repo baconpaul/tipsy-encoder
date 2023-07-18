@@ -9,40 +9,36 @@
 TEST_CASE("Binary to Float in range across all binaries")
 {
     // This test can be a touch slow but works fine
-    unsigned char d[3];
     float f;
 
     for (int i = 0; i < 256; i++)
         for (int j = 0; j < 256; j++)
             for (int k = 0; k < 256; k++)
             {
-                d[0] = i;
-                d[1] = j;
-                d[2] = k;
-                f = tipsy::threeBytesToFloat(d);
-                REQUIRE(f > -10);
-                REQUIRE(f < 10);
+                f = tipsy::FloatBytes(i, j, k);
+                REQUIRE(f > -10.f);
+                REQUIRE(f < 10.f);
                 REQUIRE(std::isfinite(f));
+                REQUIRE(!std::isnan(f));
             }
 }
 
 TEST_CASE("Binary to Float Decodable with Fidelity")
 {
     // This test can be a touch slow but works fine
-    unsigned char d[3], e[3];
     float f;
 
     for (int i = 0; i < 256; i++)
         for (int j = 0; j < 256; j++)
             for (int k = 0; k < 256; k++)
             {
-                d[0] = i;
-                d[1] = j;
-                d[2] = k;
-                f = tipsy::threeBytesToFloat(d);
-                tipsy::floatToThreeBytes(f, e);
-                REQUIRE(e[0] == d[0]);
-                REQUIRE(e[1] == d[1]);
-                REQUIRE(e[2] == d[2]);
+                auto fb = tipsy::FloatBytes(i,j,k);
+                REQUIRE(fb.first() == i);
+                REQUIRE(fb.second() == j);
+                REQUIRE(fb.third() == k);
+                f = fb.f;
+                REQUIRE(tipsy::FirstByte(f) == i);
+                REQUIRE(tipsy::SecondByte(f) == j);
+                REQUIRE(tipsy::ThirdByte(f) == k);
             }
 }
