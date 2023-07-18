@@ -5,9 +5,9 @@
  * Given an encoder for raw binary, we need a communications protocol. This sort of
  * lays one out with a stateful encoder and decoder object.
  *
- * We have to take great care to have these be audio thread safe, so heap heap allocation and copies
- * are things we try hard not to do. Please carefully read the comments on functions to make
- * sure you get the ownership correct.
+ * We have to take great care to have these be audio thread safe, so heap allocation
+ * and copies are things we try hard not to do. Please carefully read the comments on
+ * functions to make sure you get the ownership correct.
  */
 
 #include <cstdint>

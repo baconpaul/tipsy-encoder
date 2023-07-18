@@ -27,26 +27,26 @@ union FloatBytes
     unsigned char bytes[4];
     float f;
 
-    operator float() { return f; }
+    operator float() noexcept { return f; }
 
-    unsigned char first() { return bytes[0]; }
-    unsigned char second() { return bytes[1]; }
-    unsigned char third() { return (bytes[2] & LOW_7_MASK) | (bytes[3] & BIT_8_MASK); }
+    unsigned char first() noexcept { return bytes[0]; }
+    unsigned char second() noexcept { return bytes[1]; }
+    unsigned char third() noexcept { return (bytes[2] & LOW_7_MASK) | (bytes[3] & BIT_8_MASK); }
 
-    FloatBytes(float f)
+    FloatBytes(float f) noexcept
     {
         this->f = f;
     }
 
-    FloatBytes()
+    FloatBytes() noexcept
     {
         bytes[0] = 0;
         bytes[1] = 0;
         bytes[2] = 0;
-        bytes[3] = 0x3f;
+        bytes[3] = EXPONENT_FILL;
     }
 
-    FloatBytes(unsigned char b1, unsigned char b2)
+    FloatBytes(unsigned char b1, unsigned char b2) noexcept
     {
         bytes[0] = b1;
         bytes[1] = b2;
@@ -54,7 +54,7 @@ union FloatBytes
         bytes[3] = EXPONENT_FILL;
     }
 
-    FloatBytes(uint16_t value)
+    FloatBytes(uint16_t value) noexcept
     {
         bytes[0] = value & BYTE_MASK;
         bytes[1] = (value >> 8) & BYTE_MASK;
@@ -62,15 +62,14 @@ union FloatBytes
         bytes[3] = EXPONENT_FILL;
     }
 
-    static bool isRepresentable(uint32_t value)
+    // Not all uint32_t values are representable in this format
+    static bool isRepresentable(uint32_t value) noexcept
     {
         return 0 == (value & (uint32_t)0xFF000000);
     }
 
-    FloatBytes(uint32_t value)
+    FloatBytes(uint32_t value) noexcept
     {
-        // Not all uint32_t values are representable in this format
-        // Should this state raise an exception? 
         assert(isRepresentable(value));
         bytes[0] = value & BYTE_MASK;
         bytes[1] = (value >> 8) & BYTE_MASK;
@@ -79,7 +78,8 @@ union FloatBytes
         bytes[3] = (b3 & BIT_8_MASK) | EXPONENT_FILL;
     }
 
-    FloatBytes(unsigned char b1, unsigned char b2, unsigned char b3) {
+    FloatBytes(unsigned char b1, unsigned char b2, unsigned char b3) noexcept
+    {
         bytes[0] = b1;
         bytes[1] = b2;
         bytes[2] = b3 & LOW_7_MASK;
@@ -87,34 +87,35 @@ union FloatBytes
     }
 };
 
-inline uint16_t uint16_FromFloat(float f)
+inline uint16_t uint16_FromFloat(float f) noexcept
 {
     auto fb = FloatBytes(f);
+    assert(0 == fb.bytes[2]);
     return fb.bytes[0] | (fb.bytes[1] << 8);
 }
 
-inline uint32_t uint32_FromFloat(float f)
+inline uint32_t uint32_FromFloat(float f) noexcept
 {
     auto fb = FloatBytes(f);
     return fb.first() | (fb.second() << 8) | (fb.third() << 16);
 }
 
-inline float threeBytesToFloat(unsigned char b1, unsigned char b2, unsigned char b3)
+inline float threeBytesToFloat(unsigned char b1, unsigned char b2, unsigned char b3) noexcept
 {
     return FloatBytes(b1, b2, b3).f;
 }
 
-inline unsigned char FirstByte(float f)
+inline unsigned char FirstByte(float f) noexcept
 {
     return FloatBytes(f).first();
 }
 
-inline unsigned char SecondByte(float f)
+inline unsigned char SecondByte(float f) noexcept
 {
     return FloatBytes(f).second();
 }
 
-inline unsigned char ThirdByte(float f)
+inline unsigned char ThirdByte(float f) noexcept
 {
     return FloatBytes(f).third();
 }
