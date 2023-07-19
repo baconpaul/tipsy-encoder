@@ -8,6 +8,22 @@
 #include <cstring>
 #include <iostream>
 
+TEST_CASE( "Sentinels In Bound" )
+{
+    REQUIRE( tipsy::kMessageBeginSentinel < 10);
+    REQUIRE( tipsy::kMessageBeginSentinel > tipsy::maximumEncodedFloat());
+    REQUIRE( tipsy::kVersionSentinel < 10);
+    REQUIRE( tipsy::kVersionSentinel > tipsy::maximumEncodedFloat());
+    REQUIRE( tipsy::kSizeSentinel < 10);
+    REQUIRE( tipsy::kSizeSentinel > tipsy::maximumEncodedFloat());
+    REQUIRE( tipsy::kMimeTypeSentinel < 10);
+    REQUIRE( tipsy::kMimeTypeSentinel > tipsy::maximumEncodedFloat());
+    REQUIRE( tipsy::kBodySentinel < 10);
+    REQUIRE( tipsy::kBodySentinel > tipsy::maximumEncodedFloat());
+    REQUIRE( tipsy::kEndMessageSentinel < 10);
+    REQUIRE( tipsy::kEndMessageSentinel > tipsy::maximumEncodedFloat());
+}
+
 TEST_CASE("Protocol Encode Simple String")
 {
     INFO("FIXME - make this test assert state transitions");
@@ -60,6 +76,8 @@ TEST_CASE("Encode Decode String")
     {
         float nf;
         auto st = pe.getNextMessageFloat(nf);
+        REQUIRE(nf < 10);
+        REQUIRE(nf > -10);
         auto rf = pd.readFloat(nf);
 
         REQUIRE(!tipsy::ProtocolDecoder::isError(rf));

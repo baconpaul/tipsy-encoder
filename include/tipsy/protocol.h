@@ -25,12 +25,12 @@ namespace tipsy
 
 // We know that our 3-byte-to-binary encoder encodes numbers strictly in the range
 // -10,10 so any valid float outside that range can be used as a sentinel
-static constexpr float kMessageBeginSentinel{11.f};
-static constexpr float kVersionSentinel{12.f};
-static constexpr float kSizeSentinel{13.f};
-static constexpr float kMimeTypeSentinel{14.f};
-static constexpr float kBodySentinel{15.f};
-static constexpr float kEndMessageSentinel{16.f};
+static constexpr float kMessageBeginSentinel{5.1f};
+static constexpr float kVersionSentinel{5.2f};
+static constexpr float kSizeSentinel{5.3f};
+static constexpr float kMimeTypeSentinel{5.4f};
+static constexpr float kBodySentinel{5.5f};
+static constexpr float kEndMessageSentinel{5.6f};
 
 static constexpr uint16_t kVersion{0x01};
 
@@ -57,7 +57,7 @@ struct ProtocolEncoder
         ERROR_MISSING_DATA,
     };
 
-    bool isError(EncoderResult r)
+    bool isError(EncoderResult r) const
     {
         return r >= EncoderResult::ERROR_UNKNOWN;
     }
@@ -66,6 +66,8 @@ struct ProtocolEncoder
     EncoderResult initiateMessage(const char *inMimeType, uint32_t inDataBytes,
                                   const unsigned char *const inData)
     {
+        assert(kMessageBeginSentinel > tipsy::maximumEncodedFloat());
+
         if (inDataBytes > kMaxMessageLength)
         {
             return EncoderResult::ERROR_MESSAGE_TOO_LARGE;
@@ -326,6 +328,8 @@ struct ProtocolDecoder
     TIPSY_NODISCARD
     DecoderResult readFloat(float f)
     {
+        assert(kMessageBeginSentinel > tipsy::maximumEncodedFloat());
+
         if (f == kMessageBeginSentinel)
         {
             setState(DecoderState::START_HEADER);

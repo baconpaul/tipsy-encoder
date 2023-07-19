@@ -27,16 +27,13 @@ union FloatBytes
     unsigned char bytes[4];
     float f;
 
-    operator float() noexcept { return f; }
+    operator float() const noexcept { return f; }
 
-    unsigned char first() noexcept { return bytes[0]; }
-    unsigned char second() noexcept { return bytes[1]; }
-    unsigned char third() noexcept { return (bytes[2] & LOW_7_MASK) | (bytes[3] & BIT_8_MASK); }
+    unsigned char first() const noexcept { return bytes[0]; }
+    unsigned char second() const noexcept { return bytes[1]; }
+    unsigned char third() const noexcept { return (bytes[2] & LOW_7_MASK) | (bytes[3] & BIT_8_MASK); }
 
-    FloatBytes(float f) noexcept
-    {
-        this->f = f;
-    }
+    explicit constexpr FloatBytes(float fi) noexcept : f(fi) {}
 
     FloatBytes() noexcept
     {
@@ -78,13 +75,9 @@ union FloatBytes
         bytes[3] = (b3 & BIT_8_MASK) | EXPONENT_FILL;
     }
 
-    FloatBytes(unsigned char b1, unsigned char b2, unsigned char b3) noexcept
-    {
-        bytes[0] = b1;
-        bytes[1] = b2;
-        bytes[2] = b3 & LOW_7_MASK;
-        bytes[3] = (b3 & BIT_8_MASK) | EXPONENT_FILL;
-    }
+    constexpr FloatBytes(unsigned char b1, unsigned char b2, unsigned char b3) noexcept : bytes{b1, b2, (unsigned char)(b3&LOW_7_MASK),
+                                                                                                (unsigned char)((b3 & BIT_8_MASK) | EXPONENT_FILL)}
+                                                                                          {}
 };
 
 inline uint16_t uint16_FromFloat(float f) noexcept
@@ -120,5 +113,7 @@ inline unsigned char ThirdByte(float f) noexcept
     return FloatBytes(f).third();
 }
 
+inline float minimumEncodedFloat() noexcept { return FloatBytes(255,255,255).f; }
+inline float maximumEncodedFloat() noexcept { return FloatBytes(255,255,127).f; }
 }
 #endif // TIPSY_ENCODER_BINARY_TO_FLOAT_H
