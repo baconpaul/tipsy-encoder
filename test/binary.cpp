@@ -12,10 +12,9 @@ TEST_CASE("Binary to Float in range across all binaries")
     float f;
 
     float minValue = std::numeric_limits<float>::max();
-    int minAt[3]{0,0,0};
+    int minAt[3]{0, 0, 0};
     float maxValue = std::numeric_limits<float>::min();
-    int maxAt[3]{0,0,0};
-
+    int maxAt[3]{0, 0, 0};
 
     REQUIRE(tipsy::minimumEncodedFloat() > -5);
     REQUIRE(tipsy::maximumEncodedFloat() < 5);
@@ -41,10 +40,13 @@ TEST_CASE("Binary to Float in range across all binaries")
                 }
                 REQUIRE(f >= tipsy::minimumEncodedFloat());
                 REQUIRE(f <= tipsy::maximumEncodedFloat());
+                REQUIRE(tipsy::isValidDataEncoding(f));
                 REQUIRE(std::isfinite(f));
                 REQUIRE(!std::isnan(f));
             }
 
+    REQUIRE(!tipsy::isValidDataEncoding(tipsy::maximumEncodedFloat() + 0.001));
+    REQUIRE(!tipsy::isValidDataEncoding(tipsy::minimumEncodedFloat() - 0.001));
     REQUIRE(minValue == tipsy::minimumEncodedFloat());
     REQUIRE(maxValue == tipsy::maximumEncodedFloat());
     REQUIRE(minAt[0] == 255);
@@ -64,7 +66,7 @@ TEST_CASE("Binary to Float Decodable with Fidelity")
         for (int j = 0; j < 256; j++)
             for (int k = 0; k < 256; k++)
             {
-                auto fb = tipsy::FloatBytes(i,j,k);
+                auto fb = tipsy::FloatBytes(i, j, k);
                 REQUIRE(fb.first() == i);
                 REQUIRE(fb.second() == j);
                 REQUIRE(fb.third() == k);

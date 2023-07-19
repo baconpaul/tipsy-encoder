@@ -12,7 +12,8 @@
 
 #include <cstdint>
 #include <cstring>
-#include "tipsy.h"
+#include "binary-to-float.h"
+#include "version.h"
 
 #if __cplusplus >= 201703L
 #define TIPSY_NODISCARD [[nodiscard]]
@@ -24,19 +25,27 @@ namespace tipsy
 {
 
 // We know that our 3-byte-to-binary encoder encodes numbers strictly in the range
-// -10,10 so any valid float outside that range can be used as a sentinel
-static constexpr float kMessageBeginSentinel{5.1f};
-static constexpr float kVersionSentinel{5.2f};
-static constexpr float kSizeSentinel{5.3f};
-static constexpr float kMimeTypeSentinel{5.4f};
-static constexpr float kBodySentinel{5.5f};
-static constexpr float kEndMessageSentinel{5.6f};
+// -1,1 so any valid float outside that range can be used as a sentinel. We use floats
+// in the '3' range here.
+static constexpr float kMessageBeginSentinel{3.1f};
+static constexpr float kVersionSentinel{3.2f};
+static constexpr float kSizeSentinel{3.3f};
+static constexpr float kMimeTypeSentinel{3.4f};
+static constexpr float kBodySentinel{3.5f};
+static constexpr float kEndMessageSentinel{3.6f};
 
 static constexpr uint16_t kVersion{0x01};
 
 // limits
 static constexpr size_t kMaxMimeTypeSize{256};
 static constexpr size_t kMaxMessageLength{1 << 23};
+
+inline bool isValidProtocolEncoding(float f) noexcept
+{
+    return isValidDataEncoding(f) || (f == kMessageBeginSentinel) || (f == kVersionSentinel) ||
+           (f == kSizeSentinel) || (f == kMimeTypeSentinel) || (f == kBodySentinel) ||
+           (f == kEndMessageSentinel);
+}
 
 struct ProtocolEncoder
 {
@@ -57,10 +66,7 @@ struct ProtocolEncoder
         ERROR_MISSING_DATA,
     };
 
-    bool isError(EncoderResult r) const
-    {
-        return r >= EncoderResult::ERROR_UNKNOWN;
-    }
+    bool isError(EncoderResult r) const { return r >= EncoderResult::ERROR_UNKNOWN; }
 
     TIPSY_NODISCARD
     EncoderResult initiateMessage(const char *inMimeType, uint32_t inDataBytes,
@@ -77,10 +83,10 @@ struct ProtocolEncoder
             return EncoderResult::ERROR_MISSING_DATA;
         }
         if (nullptr == inMimeType)
-        if (inDataBytes > kMaxMessageLength)
-        {
-            return EncoderResult::ERROR_MESSAGE_TOO_LARGE;
-        }
+            if (inDataBytes > kMaxMessageLength)
+            {
+                return EncoderResult::ERROR_MESSAGE_TOO_LARGE;
+            }
         if ((inDataBytes > 0) && (nullptr == inData))
         {
             return EncoderResult::ERROR_MISSING_DATA;
@@ -261,18 +267,15 @@ struct ProtocolEncoder
         return EncoderResult::MESSAGE_TERMINATED;
     }
 
-    bool isDormant()
-    {
-        return encoderState == EncoderState::NO_MESSAGE;
-    }
+    bool isDormant() { return encoderState == EncoderState::NO_MESSAGE; }
 
   private:
-    const char * mimeType{nullptr};
+    const char *mimeType{nullptr};
     uint32_t dataBytes{0};
     uint16_t mimeTypeSize{0};
     const unsigned char *data{nullptr};
 
-    enum class EncoderState: uint16_t
+    enum class EncoderState : uint16_t
     {
         NO_MESSAGE,
         START_MESSAGE,
@@ -308,12 +311,9 @@ struct ProtocolDecoder
         ERROR_DATA_TOO_LARGE
     };
 
-    static bool isError(DecoderResult r)
-    {
-        return r >= DecoderResult::ERROR_UNKNOWN;
-    }
+    static bool isError(DecoderResult r) { return r >= DecoderResult::ERROR_UNKNOWN; }
 
-    bool provideDataBuffer(unsigned char * data, int size)
+    bool provideDataBuffer(unsigned char *data, int size)
     {
         if (decoderState == DecoderState::START_BODY)
             return false;
@@ -419,7 +419,8 @@ struct ProtocolDecoder
                 {
                     return DecoderResult::ERROR_MALFORMED_HEADER;
                 }
-                if (pos >= kMaxMimeTypeSize - 4) {
+                if (pos >= kMaxMimeTypeSize - 4)
+                {
                     return DecoderResult::ERROR_DATA_TOO_LARGE;
                 }
 
