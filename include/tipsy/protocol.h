@@ -313,7 +313,7 @@ struct ProtocolDecoder
 
     static bool isError(DecoderResult r) { return r >= DecoderResult::ERROR_UNKNOWN; }
 
-    bool provideDataBuffer(unsigned char *data, int size)
+    bool provideDataBuffer(unsigned char *data, uint32_t size)
     {
         if (decoderState == DecoderState::START_BODY)
             return false;
@@ -472,7 +472,7 @@ struct ProtocolDecoder
     uint16_t mimetypeSize;
 
     unsigned char *dataStore{nullptr};
-    int dataStoreSize{0};
+    uint32_t dataStoreSize{0};
 
     void setState(DecoderState s)
     {
