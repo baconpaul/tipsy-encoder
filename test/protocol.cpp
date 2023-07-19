@@ -191,3 +191,68 @@ TEST_CASE("Encode Decode Empty Message")
         }
     }
 }
+
+TEST_CASE("Test Message Sizes 0 through buffer size")
+{
+    static constexpr int maxBufferSz{2048};
+
+    static const char *mt{"test/type"};
+
+    unsigned char outB[maxBufferSz], inB[maxBufferSz];
+    for (auto bufferSz : {126, 127, 128, 129, 130, 254, 255, 256, 257, 258, 259})
+    {
+        for (int bs = 0; bs < bufferSz; ++bs)
+        {
+            DYNAMIC_SECTION("dataSize " << bufferSz << " message Size " << bs)
+            {
+                memset(inB, 0, sizeof(inB));
+                memset(outB, 0, sizeof(outB));
+
+                for (int j = 0; j < bs; ++j)
+                {
+                    inB[j] = (((unsigned char)j) & 255);
+                }
+
+                tipsy::ProtocolEncoder pe;
+                tipsy::ProtocolDecoder pd;
+                pd.provideDataBuffer(outB, bufferSz);
+
+                // don't forget the terminating null
+                auto status = pe.initiateMessage(mt, bs, inB);
+                REQUIRE(status == tipsy::EncoderResult::MESSAGE_INITIATED);
+                bool gotHeader{false}, gotBody{false};
+                for (int i = 0; i < 1000 && !gotBody; ++i)
+                {
+                    float nf;
+                    auto st = pe.getNextMessageFloat(nf);
+                    auto rf = pd.readFloat(nf);
+
+                    auto tf = tipsy::FloatBytes(nf);
+
+                    REQUIRE(!tipsy::ProtocolDecoder::isError(rf));
+
+                    if (gotBody && gotHeader)
+                    {
+                        REQUIRE(rf == tipsy::DecoderResult::DORMANT);
+                    }
+                    if (rf == tipsy::DecoderResult::HEADER_READY)
+                    {
+                        REQUIRE(std::string(pd.getMimeType()) == std::string(mt));
+                        gotHeader = true;
+                    }
+                    if (rf == tipsy::DecoderResult::BODY_READY)
+                    {
+                        REQUIRE(pd.getDataSize() == bs);
+                        for (int j = 0; j < bs; ++j)
+                        {
+                            INFO("Testing at " << j);
+                            REQUIRE(outB[j] == inB[j]);
+                        }
+                        gotBody = true;
+                    }
+                }
+                REQUIRE(gotBody);
+            }
+        }
+    }
+}
