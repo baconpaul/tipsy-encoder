@@ -31,3 +31,22 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 
+add_custom_target(tipsy-code-checks)
+
+# Clang Format checks
+find_program(CLANG_FORMAT_EXE NAMES clang-format-12 clang-format)
+set(CLANG_FORMAT_DIRS test include)
+set(CLANG_FORMAT_EXTS cpp h)
+foreach(dir ${CLANG_FORMAT_DIRS})
+    foreach(ext ${CLANG_FORMAT_EXTS})
+        list(APPEND CLANG_FORMAT_GLOBS "':(glob)${dir}/**/*.${ext}'")
+    endforeach()
+endforeach()
+add_custom_command(TARGET tipsy-code-checks
+        POST_BUILD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E echo About to check clang-format using ${CLANG_FORMAT_EXE}
+        COMMAND git ls-files -- ${CLANG_FORMAT_GLOBS} | xargs ${CLANG_FORMAT_EXE} --dry-run --Werror
+        )
+# }}}
+

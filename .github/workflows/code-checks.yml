@@ -1,0 +1,24 @@
+name: VCV Rack Code Checks
+on: [pull_request]
+
+env:
+  rack-sdk-version: 2.3.0
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-code-checks:
+    name: code-checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Run Code Checks
+        run: |
+          cmake -Bbuild -DCMAKE_BUILD_TYPE=DEBUG
+          cmake --build build --target tipsy-code-checks

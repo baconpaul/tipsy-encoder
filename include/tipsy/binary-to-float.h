@@ -27,16 +27,16 @@ union FloatBytes
     unsigned char bytes[4];
     float f;
 
-    operator float() noexcept { return f; }
+    operator float() const noexcept { return f; }
 
-    unsigned char first() noexcept { return bytes[0]; }
-    unsigned char second() noexcept { return bytes[1]; }
-    unsigned char third() noexcept { return (bytes[2] & LOW_7_MASK) | (bytes[3] & BIT_8_MASK); }
-
-    FloatBytes(float f) noexcept
+    unsigned char first() const noexcept { return bytes[0]; }
+    unsigned char second() const noexcept { return bytes[1]; }
+    unsigned char third() const noexcept
     {
-        this->f = f;
+        return (bytes[2] & LOW_7_MASK) | (bytes[3] & BIT_8_MASK);
     }
+
+    explicit constexpr FloatBytes(float fi) noexcept : f(fi) {}
 
     FloatBytes() noexcept
     {
@@ -78,12 +78,10 @@ union FloatBytes
         bytes[3] = (b3 & BIT_8_MASK) | EXPONENT_FILL;
     }
 
-    FloatBytes(unsigned char b1, unsigned char b2, unsigned char b3) noexcept
+    constexpr FloatBytes(unsigned char b1, unsigned char b2, unsigned char b3) noexcept
+        : bytes{b1, b2, (unsigned char)(b3 & LOW_7_MASK),
+                (unsigned char)((b3 & BIT_8_MASK) | EXPONENT_FILL)}
     {
-        bytes[0] = b1;
-        bytes[1] = b2;
-        bytes[2] = b3 & LOW_7_MASK;
-        bytes[3] = (b3 & BIT_8_MASK) | EXPONENT_FILL;
     }
 };
 
@@ -105,20 +103,17 @@ inline float threeBytesToFloat(unsigned char b1, unsigned char b2, unsigned char
     return FloatBytes(b1, b2, b3).f;
 }
 
-inline unsigned char FirstByte(float f) noexcept
-{
-    return FloatBytes(f).first();
-}
+inline unsigned char FirstByte(float f) noexcept { return FloatBytes(f).first(); }
 
-inline unsigned char SecondByte(float f) noexcept
-{
-    return FloatBytes(f).second();
-}
+inline unsigned char SecondByte(float f) noexcept { return FloatBytes(f).second(); }
 
-inline unsigned char ThirdByte(float f) noexcept
-{
-    return FloatBytes(f).third();
-}
+inline unsigned char ThirdByte(float f) noexcept { return FloatBytes(f).third(); }
 
+inline float minimumEncodedFloat() noexcept { return FloatBytes(255, 255, 255).f; }
+inline float maximumEncodedFloat() noexcept { return FloatBytes(255, 255, 127).f; }
+inline bool isValidDataEncoding(float f) noexcept
+{
+    return (minimumEncodedFloat() <= f) && (f <= maximumEncodedFloat());
 }
+} // namespace tipsy
 #endif // TIPSY_ENCODER_BINARY_TO_FLOAT_H
