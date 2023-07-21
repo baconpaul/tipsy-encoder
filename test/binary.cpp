@@ -76,3 +76,32 @@ TEST_CASE("Binary to Float Decodable with Fidelity")
                 REQUIRE(tipsy::ThirdByte(f) == k);
             }
 }
+
+TEST_CASE("Constructors and Utilities")
+{
+    SECTION("Empty CTOR")
+    {
+        auto f = tipsy::FloatBytes();
+        REQUIRE(f.first() == 0);
+        REQUIRE(f.second() == 0);
+        REQUIRE(f.third() == 0);
+    }
+
+    SECTION("tipsy::threeBytesToFloat")
+    {
+        char d[3]{17, 28, 42};
+        auto f = tipsy::threeBytesToFloat(d[0], d[1], d[2]);
+        auto q = tipsy::FloatBytes(f);
+        REQUIRE(q.first() == d[0]);
+        REQUIRE(q.second() == d[1]);
+        REQUIRE(q.third() == d[2]);
+    }
+
+    SECTION("FB 2 byte constructor")
+    {
+        auto f = tipsy::FloatBytes(84, 23);
+        REQUIRE(f.first() == 84);
+        REQUIRE(f.second() == 23);
+        REQUIRE(f.third() == 0);
+    }
+}
