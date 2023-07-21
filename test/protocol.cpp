@@ -267,9 +267,9 @@ TEST_CASE("Mime Type Size 0 - 20")
 
     unsigned char buffer[2048];
 
-    for (int mts=0; mts<=20; ++mts)
+    for (int mts = 0; mts <= 20; ++mts)
     {
-        for (int k=0; k<mts; ++k)
+        for (int k = 0; k < mts; ++k)
             mimeTypeBuffer[k] = (char)('A' + k);
         mimeTypeBuffer[mts] = 0;
 
