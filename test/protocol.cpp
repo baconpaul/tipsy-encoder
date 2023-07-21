@@ -316,3 +316,107 @@ TEST_CASE("Mime Type Size 0 - 20")
         }
     }
 }
+
+TEST_CASE("Sentinel Display Name")
+{
+#define CK(s) REQUIRE(std::string("tipsy::") + tipsy::sentinelDisplayName(s) == #s);
+    CK(tipsy::kMessageBeginSentinel);
+    CK(tipsy::kVersionSentinel);
+    CK(tipsy::kSizeSentinel);
+    CK(tipsy::kMimeTypeSentinel);
+    CK(tipsy::kBodySentinel);
+    CK(tipsy::kEndMessageSentinel);
+
+    REQUIRE(tipsy::sentinelDisplayName(0.42) == "NOT_A_SENTINEL");
+#undef CK
+}
+
+TEST_CASE("Encoder Error Cases")
+{
+    SECTION("Null Data")
+    {
+        tipsy::ProtocolEncoder pe;
+        auto r = pe.initiateMessage("tst", 1, nullptr);
+        REQUIRE(pe.isError(r));
+        REQUIRE(r == tipsy::EncoderResult::ERROR_MISSING_DATA);
+    }
+
+    SECTION("Too Much Purported Data")
+    {
+        tipsy::ProtocolEncoder pe;
+        unsigned char x[1];
+        auto r = pe.initiateMessage("tst", tipsy::kMaxMessageLength + 1, x);
+        REQUIRE(pe.isError(r));
+        REQUIRE(r == tipsy::EncoderResult::ERROR_MESSAGE_TOO_LARGE);
+    }
+
+    SECTION("Too Big a Mime Type")
+    {
+        std::string mt = "hello there";
+        for (int i = 0; i < 5; ++i)
+            mt += mt;
+        tipsy::ProtocolEncoder pe;
+        unsigned char x[1024];
+        auto r = pe.initiateMessage(mt.c_str(), 1024, x);
+        REQUIRE(pe.isError(r));
+        REQUIRE(r == tipsy::EncoderResult::ERROR_MIME_TYPE_TOO_LARGE);
+    }
+
+    SECTION("Restart while running")
+    {
+        const char *mimeType{"application/text"};
+        const char *message{"I am the very model of a modern major general"};
+
+        tipsy::ProtocolEncoder pe;
+
+        // don't forget null termination
+        auto status = pe.initiateMessage(mimeType, strlen(message) + 1, (unsigned char *)message);
+        REQUIRE(status == tipsy::EncoderResult::MESSAGE_INITIATED);
+        bool done{false};
+        for (int i = 0; i < 3; ++i)
+        {
+            float nf;
+            auto st = pe.getNextMessageFloat(nf);
+            REQUIRE(!pe.isError(st));
+        }
+
+        status = pe.initiateMessage(mimeType, strlen(message) + 1, (unsigned char *)message);
+        REQUIRE(pe.isError(status));
+        REQUIRE(status == tipsy::EncoderResult::ERROR_MESSAGE_ALREADY_ACTIVE);
+    }
+
+    SECTION("Terminate when Running")
+    {
+        const char *mimeType{"application/text"};
+        const char *message{"I am the very model of a modern major general"};
+
+        tipsy::ProtocolEncoder pe;
+
+        // don't forget null termination
+        auto status = pe.initiateMessage(mimeType, strlen(message) + 1, (unsigned char *)message);
+        REQUIRE(status == tipsy::EncoderResult::MESSAGE_INITIATED);
+        bool done{false};
+        for (int i = 0; i < 3; ++i)
+        {
+            float nf;
+            auto st = pe.getNextMessageFloat(nf);
+            REQUIRE(!pe.isError(st));
+        }
+
+        status = pe.terminateCurrentMessage();
+        REQUIRE(!pe.isError(status));
+        REQUIRE(status == tipsy::EncoderResult::MESSAGE_TERMINATED);
+    }
+
+    SECTION("Terminate before Running")
+    {
+        const char *mimeType{"application/text"};
+        const char *message{"I am the very model of a modern major general"};
+
+        tipsy::ProtocolEncoder pe;
+
+        auto status = pe.terminateCurrentMessage();
+        REQUIRE(pe.isError(status));
+        REQUIRE(status == tipsy::EncoderResult::ERROR_NO_MESSAGE_ACTIVE);
+    }
+}

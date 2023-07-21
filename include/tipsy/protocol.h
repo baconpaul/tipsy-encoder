@@ -62,6 +62,7 @@ inline std::string sentinelDisplayName(float f) noexcept
     CK(kMimeTypeSentinel);
     CK(kBodySentinel);
     CK(kEndMessageSentinel);
+#undef CK
 
     return "ERROR";
 }
@@ -101,15 +102,7 @@ struct ProtocolEncoder
         {
             return EncoderResult::ERROR_MISSING_DATA;
         }
-        if (nullptr == inMimeType)
-            if (inDataBytes > kMaxMessageLength)
-            {
-                return EncoderResult::ERROR_MESSAGE_TOO_LARGE;
-            }
-        if ((inDataBytes > 0) && (nullptr == inData))
-        {
-            return EncoderResult::ERROR_MISSING_DATA;
-        }
+
         if (nullptr == inMimeType)
         {
             return EncoderResult::ERROR_MISSING_MIME_TYPE;
@@ -142,7 +135,6 @@ struct ProtocolEncoder
         case EncoderState::NO_MESSAGE:
             f = 0;
             return EncoderResult::DORMANT;
-            return EncoderResult::DORMANT;
             break;
         case EncoderState::START_MESSAGE:
         {
@@ -151,9 +143,7 @@ struct ProtocolEncoder
             if (pos == 3)
             {
                 setState(EncoderState::HEADER_VERSION);
-                setState(EncoderState::HEADER_VERSION);
             }
-            return EncoderResult::ENCODING_MESSAGE;
             return EncoderResult::ENCODING_MESSAGE;
             break;
         }
