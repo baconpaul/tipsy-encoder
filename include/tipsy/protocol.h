@@ -15,7 +15,6 @@
 #include "binary-to-float.h"
 #include "version.h"
 
-
 #if __cplusplus >= 201703L
 #define TIPSY_NODISCARD [[nodiscard]]
 #else
